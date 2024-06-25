@@ -1,3 +1,4 @@
+import argv
 import birl
 import birl/duration
 import gleam/bit_array
@@ -6,11 +7,9 @@ import gleam/dict
 import gleam/erlang/process
 import gleam/int
 import gleam/io
-import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order.{Gt}
 import gleam/otp/actor
-import gleam/result
 import gleam/string
 import glisten.{Packet}
 
@@ -19,6 +18,14 @@ type State =
 
 pub fn main() {
   io.println("Logs from your program will appear here!")
+
+  let port = case argv.load().arguments {
+    ["--port", port] -> {
+      let assert Ok(p) = int.parse(port)
+      p
+    }
+    _ -> 6379
+  }
 
   let state: State = dict.new()
 
@@ -53,17 +60,14 @@ pub fn main() {
 
           let assert Ok(#(value, expiry)) = dict.get(state, key)
 
-          let response = case expiry {
+          let assert Ok(_) = case expiry {
             Some(expiry) ->
               case birl.compare(birl.now(), expiry) {
-                Gt -> "$-1\r\n"
-                _ -> "+" <> value <> "\r\n"
+                Gt -> send(Error(""))
+                _ -> send(Ok(value))
               }
-            None -> "+" <> value <> "\r\n"
+            None -> send(Ok(value))
           }
-
-          let assert Ok(_) =
-            glisten.send(conn, bytes_builder.from_string(response))
           state
         }
         "set" -> {
@@ -106,7 +110,7 @@ pub fn main() {
       }
       actor.continue(state)
     })
-    |> glisten.serve(6379)
+    |> glisten.serve(port)
 
   process.sleep_forever()
 }
@@ -125,8 +129,4 @@ fn take_every_2(xs) {
     [a] -> [a]
     [a, _, ..more] -> [a, ..take_every_2(more)]
   }
-}
-
-fn bulk(str) {
-  "$" <> int.to_string(string.length(str)) <> "\r\n" <> str <> "\r\n"
 }
