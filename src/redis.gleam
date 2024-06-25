@@ -44,6 +44,15 @@ pub fn main() {
         |> glisten.send(conn, _)
       }
 
+      let send_bulk = fn(string: Result(String, String)) {
+        case string {
+          Ok(string) -> bulk_string(string)
+          Error(msg) -> "-" <> msg <> "\r\n"
+        }
+        |> bytes_builder.from_string
+        |> glisten.send(conn, _)
+      }
+
       let assert [cmd, ..args] = parse(pkt)
 
       let state = case string.lowercase(cmd) {
@@ -103,6 +112,10 @@ pub fn main() {
             }
           }
         }
+        "info" -> {
+          let assert Ok(_) = send_bulk(Ok("role:master"))
+          state
+        }
         _ -> {
           let assert Ok(_) = send(Error("unknown command '" <> cmd <> "'"))
           state
@@ -129,4 +142,8 @@ fn take_every_2(xs) {
     [a] -> [a]
     [a, _, ..more] -> [a, ..take_every_2(more)]
   }
+}
+
+fn bulk_string(str) {
+  "$" <> int.to_string(string.length(str)) <> "\r\n" <> str <> "\r\n"
 }
