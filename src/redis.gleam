@@ -25,6 +25,10 @@ fn args_kv(args, k) {
   }
 }
 
+const replication_id = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+
+const offset = 0
+
 pub fn main() {
   io.println("Logs from your program will appear here!")
 
@@ -127,7 +131,14 @@ pub fn main() {
               "role:"
               <> replicaof
               |> option.map(fn(_) { "slave" })
-              |> option.unwrap("master"),
+              |> option.unwrap("master")
+              <> "\n"
+              <> "master_replid:"
+              <> replication_id
+              <> "\n"
+              <> "master_repl_offset:"
+              <> offset
+              |> int.to_string(),
             ))
           state
         }
