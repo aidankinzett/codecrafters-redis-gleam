@@ -1,21 +1,29 @@
+import birl
+import birl/duration
 import gleam/bit_array
 import gleam/bytes_builder
-import gleam/dict.{type Dict}
+import gleam/dict
 import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/list
-import gleam/option.{None}
+import gleam/option.{type Option, None, Some}
+import gleam/order.{Gt}
 import gleam/otp/actor
 import gleam/result
 import gleam/string
 import glisten.{Packet}
 
+type State =
+  dict.Dict(String, #(String, Option(birl.Time)))
+
 pub fn main() {
   io.println("Logs from your program will appear here!")
 
+  let state: State = dict.new()
+
   let assert Ok(_) =
-    glisten.handler(fn(_conn) { #(dict.new(), None) }, fn(msg, state, conn) {
+    glisten.handler(fn(_conn) { #(state, None) }, fn(msg, state, conn) {
       let assert Packet(pkt) = msg
       let assert Ok(pkt) = bit_array.to_string(pkt)
 
@@ -41,19 +49,55 @@ pub fn main() {
           state
         }
         "get" -> {
+          let assert [key, ..] = args
+
+          let assert Ok(#(value, expiry)) = dict.get(state, key)
+
+          let response = case expiry {
+            Some(expiry) ->
+              case birl.compare(birl.now(), expiry) {
+                Gt -> "$-1\r\n"
+                _ -> "+" <> value <> "\r\n"
+              }
+            None -> "+" <> value <> "\r\n"
+          }
+
           let assert Ok(_) =
-            list.at(args, 0)
-            |> result.unwrap("")
-            |> dict.get(state, _)
-            |> result.replace_error("")
-            |> send
+            glisten.send(conn, bytes_builder.from_string(response))
           state
         }
         "set" -> {
-          let assert [key, value, ..] = args
-          let state = dict.insert(state, key, value)
-          let assert Ok(_) = send(Ok("OK"))
-          state
+          case args {
+            [key, value, px, expiry] -> {
+              case string.lowercase(px) {
+                "px" -> {
+                  let assert Ok(expiry) = int.parse(expiry)
+                  let expiry =
+                    birl.add(birl.now(), duration.milli_seconds(expiry))
+
+                  let state = dict.insert(state, key, #(value, Some(expiry)))
+                  let assert Ok(_) = send(Ok("OK"))
+                  state
+                }
+                _ -> {
+                  let assert Ok(_) =
+                    send(Error("unknown argument '" <> px <> "'"))
+                  state
+                }
+              }
+            }
+            [key, value] -> {
+              let state = dict.insert(state, key, #(value, None))
+              let assert Ok(_) = send(Ok("OK"))
+
+              state
+            }
+            _ -> {
+              let assert Ok(_) =
+                send(Error("unknown args" <> string.join(args, " ") <> "'"))
+              state
+            }
+          }
         }
         _ -> {
           let assert Ok(_) = send(Error("unknown command '" <> cmd <> "'"))
