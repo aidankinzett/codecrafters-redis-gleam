@@ -7,25 +7,34 @@ import gleam/dict
 import gleam/erlang/process
 import gleam/int
 import gleam/io
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order.{Gt}
 import gleam/otp/actor
+import gleam/result
 import gleam/string
 import glisten.{Packet}
 
 type State =
   dict.Dict(String, #(String, Option(birl.Time)))
 
+fn args_kv(args, k) {
+  case list.drop_while(args, fn(key) { k != key }) {
+    [key, value, ..] if k == key -> Ok(value)
+    _ -> Error(Nil)
+  }
+}
+
 pub fn main() {
   io.println("Logs from your program will appear here!")
 
-  let port = case argv.load().arguments {
-    ["--port", port] -> {
-      let assert Ok(p) = int.parse(port)
-      p
-    }
-    _ -> 6379
-  }
+  let args = argv.load().arguments
+
+  let port =
+    args |> args_kv("--port") |> result.then(int.parse) |> result.unwrap(6379)
+
+  let replicaof =
+    args |> args_kv("--replicaof") |> result.map(Some) |> result.unwrap(None)
 
   let state: State = dict.new()
 
@@ -113,7 +122,13 @@ pub fn main() {
           }
         }
         "info" -> {
-          let assert Ok(_) = send_bulk(Ok("role:master"))
+          let assert Ok(_) =
+            send_bulk(Ok(
+              "role:"
+              <> replicaof
+              |> option.map(fn(_) { "slave" })
+              |> option.unwrap("master"),
+            ))
           state
         }
         _ -> {
