@@ -14,6 +14,7 @@ import gleam/otp/actor
 import gleam/result
 import gleam/string
 import glisten.{Packet}
+import mug
 
 type State =
   dict.Dict(String, #(String, Option(birl.Time)))
@@ -150,6 +151,23 @@ pub fn main() {
       actor.continue(state)
     })
     |> glisten.serve(port)
+
+  let _ = case replicaof {
+    Some(master) -> {
+      let assert [host, rest] = string.split(master, " ")
+      let assert Ok(master_port) = int.parse(rest)
+      let assert Ok(socket) =
+        mug.new(host, port: master_port)
+        |> mug.timeout(500)
+        |> mug.connect()
+      let assert Ok(_) =
+        mug.send(socket, bit_array.from_string("*1\r\n$4\r\nPING\r\n"))
+      let assert Ok(resp) = mug.receive(socket, 500)
+      let _ = io.debug(resp)
+      Nil
+    }
+    None -> Nil
+  }
 
   process.sleep_forever()
 }
