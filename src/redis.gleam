@@ -179,6 +179,11 @@ pub fn main() {
           array(["REPLCONF", "capa", "psync2"]) |> bit_array.from_string(),
         )
 
+      let assert Ok(_) = mug.receive(socket, 500)
+
+      let assert Ok(_) =
+        mug.send(socket, array(["PSYNC", "?", "-1"]) |> bit_array.from_string())
+
       Nil
     }
     None -> Nil
