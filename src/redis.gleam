@@ -147,6 +147,11 @@ pub fn main() {
           let assert Ok(_) = send(Ok("OK"))
           state
         }
+        "psync" -> {
+          let assert Ok(_) =
+            send(Ok("FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb 0"))
+          state
+        }
         _ -> {
           let assert Ok(_) = send(Error("unknown command '" <> cmd <> "'"))
           state
