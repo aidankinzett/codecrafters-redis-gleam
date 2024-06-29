@@ -161,9 +161,24 @@ pub fn main() {
         |> mug.timeout(500)
         |> mug.connect()
       let assert Ok(_) =
-        mug.send(socket, bit_array.from_string("*1\r\n$4\r\nPING\r\n"))
-      let assert Ok(resp) = mug.receive(socket, 500)
-      let _ = io.debug(resp)
+        mug.send(socket, array(["PING"]) |> bit_array.from_string())
+      let assert Ok(_) = mug.receive(socket, 500)
+
+      let assert Ok(_) =
+        mug.send(
+          socket,
+          array(["REPLCONF", "listening-port", port |> int.to_string()])
+            |> bit_array.from_string(),
+        )
+
+      let assert Ok(_) = mug.receive(socket, 500)
+
+      let assert Ok(_) =
+        mug.send(
+          socket,
+          array(["REPLCONF", "capa", "psync2"]) |> bit_array.from_string(),
+        )
+
       Nil
     }
     None -> Nil
@@ -190,4 +205,11 @@ fn take_every_2(xs) {
 
 fn bulk_string(str) {
   "$" <> int.to_string(string.length(str)) <> "\r\n" <> str <> "\r\n"
+}
+
+fn array(array) {
+  "*"
+  <> int.to_string(list.length(array))
+  <> "\r\n"
+  <> list.map(array, bulk_string) |> string.join("")
 }
