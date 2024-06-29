@@ -143,6 +143,10 @@ pub fn main() {
             ))
           state
         }
+        "replconf" -> {
+          let assert Ok(_) = send(Ok("OK"))
+          state
+        }
         _ -> {
           let assert Ok(_) = send(Error("unknown command '" <> cmd <> "'"))
           state
